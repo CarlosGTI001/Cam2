@@ -29,11 +29,12 @@ jobs:
         mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
 
     - name: Accept licenses and install SDK 27 + Build Tools 27.0.3
+      shell: bash
       env:
         ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         PATH: ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:$PATH
       run: |
-        yes | sdkmanager --licenses
+        while true; do echo y; done | sdkmanager --licenses
         sdkmanager "platforms;android-27" "build-tools;27.0.3"
 
     # Cambiar a JDK 8 para compilar
@@ -44,7 +45,7 @@ jobs:
         java-version: 8
 
     - name: Add build tools to PATH
-      run: echo "$ANDROID_SDK_ROOT/build-tools/27.0.3" >> $GITHUB_PATH
+      run: echo "${{ env.ANDROID_SDK_ROOT }}/build-tools/27.0.3" >> $GITHUB_PATH
 
     - name: Setup Gradle Wrapper 3.3 if missing
       run: |
@@ -79,7 +80,7 @@ jobs:
 
     - name: Sign SSDMobilenet APK
       run: |
-        $ANDROID_SDK_ROOT/build-tools/27.0.3/apksigner sign \
+        apksigner sign \
           --ks temp.keystore \
           --ks-key-alias temp-key \
           --ks-pass pass:temp1234 \
@@ -92,7 +93,7 @@ jobs:
 
     - name: Sign CaffeSSD APK
       run: |
-        $ANDROID_SDK_ROOT/build-tools/27.0.3/apksigner sign \
+        apksigner sign \
           --ks temp.keystore \
           --ks-key-alias temp-key \
           --ks-pass pass:temp1234 \
