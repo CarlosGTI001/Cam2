@@ -13,6 +13,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
+    strategy:
+      matrix:
+        flavor: [SSDMobilenet, CaffeSSD, LLMChat]
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -27,10 +31,11 @@ jobs:
       uses: android-actions/setup-android@v3
       with:
         api-level: 33
-        build-tools: 33.0.2
+        build-tools: 35.0.1
+        ndk: 26.3.11579264
 
     - name: Cache Gradle packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.gradle/caches
@@ -39,16 +44,14 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
 
-    - name: Setup Gradle Wrapper
-      run: |
-        # Generate gradle wrapper
-        gradle wrapper --gradle-version 7.6.1
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
 
-    - name: Build SSDMobilenet APK
-      run: ./gradlew assembleSSDMobilenetRelease --stacktrace
+    - name: Clean project
+      run: ./gradlew clean
 
-    - name: Build CaffeSSD APK
-      run: ./gradlew assembleCaffeSSDRelease --stacktrace
+    - name: Build ${{ matrix.flavor }} APK
+      run: ./gradlew assemble${{ matrix.flavor }}Release --stacktrace --info
 
     - name: Get version name
       id: version
@@ -59,13 +62,76 @@ jobs:
           echo "version=dev-${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
         fi
 
-    - name: Create Release and Upload APKs
-      uses: softprops/action-gh-release@v1
+    - name: Generate keystore for signing
+      run: |
+        keytool -genkeypair \
+          -alias release-key \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -keystore release.keystore \
+          -storepass github1234 \
+          -keypass github1234 \
+          -dname "CN=GitHub Release, OU=CI/CD, O=GitHub Actions, L=Cloud, ST=Virtual, C=US"
+
+    - name: Sign ${{ matrix.flavor }} APK
+      run: |
+        $ANDROID_HOME/build-tools/35.0.1/apksigner sign \
+          --ks release.keystore \
+          --ks-key-alias release-key \
+          --ks-pass pass:github1234 \
+          --key-pass pass:github1234 \
+          --out app-${{ matrix.flavor }}-${{ steps.version.outputs.version }}-release-signed.apk \
+          app/build/outputs/apk/${{ matrix.flavor }}/release/app-${{ matrix.flavor }}-release-unsigned.apk
+
+    - name: Upload APK as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: apk-${{ matrix.flavor }}-${{ steps.version.outputs.version }}
+        path: app-${{ matrix.flavor }}-${{ steps.version.outputs.version }}-release-signed.apk
+        retention-days: 90
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Get version name
+      id: version
+      run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.version.outputs.version }}
         name: Release ${{ steps.version.outputs.version }}
         draft: false
         prerelease: false
-        files: |
-          app/build/outputs/apk/SSDMobilenet/release/app-SSDMobilenet-release-unsigned.apk
-          app/build/outputs/apk/CaffeSSD/release/app-CaffeSSD-release-unsigned.apk
+        generate_release_notes: true
+        files: artifacts/*/*.apk
+        body: |
+          ## SNPE Camera App Release ${{ steps.version.outputs.version }}
+          
+          This release includes three APK flavors:
+          - **SSDMobilenet**: Object detection using SSD MobileNet model
+          - **CaffeSSD**: Object detection using Caffe SSD model  
+          - **LLMChat**: Chat interface with LLM inference (experimental)
+          
+          All APKs are signed and ready for installation.
+          
+          ### Installation
+          1. Download the desired APK
+          2. Enable "Install from unknown sources" in Android settings
+          3. Install the APK
+          4. Grant camera permissions when prompted
+          
+          ### Requirements
+          - Android 7.0+ (API 24+)
+          - Qualcomm Snapdragon device (for optimal performance)
+          - Camera permission required
