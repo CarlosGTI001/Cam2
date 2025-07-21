@@ -183,9 +183,20 @@ if(false) {
     }
 }
     snpenet = new SNPENet();
-      snpenet.setImageSize(size.getWidth(), size.getHeight());
-      snpenet.setModelName(BuildConfig.model);
+    snpenet.setImageSize(size.getWidth(), size.getHeight());
+    snpenet.setModelName(BuildConfig.model);
     snpenet.init(this, modelFile, labelFile);
+    
+    if (!snpenet.isInitialized()) {
+        LOGGER.e("Failed to initialize SNPE model: " + modelFile);
+        Toast.makeText(this, 
+                      "Failed to load AI model: " + modelFile + ". Please check if model file exists.", 
+                      Toast.LENGTH_LONG).show();
+        finish();
+        return;
+    }
+    
+    LOGGER.i("SNPE model initialized successfully: " + modelFile);
 
     sensorOrientation = rotation - getScreenOrientation();
     LOGGER.i("Camera orientation relative to screen canvas: %d", sensorOrientation);

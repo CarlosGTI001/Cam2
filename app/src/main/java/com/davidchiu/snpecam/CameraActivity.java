@@ -52,6 +52,7 @@ public abstract class CameraActivity extends Activity
 
   private static final String PERMISSION_CAMERA = Manifest.permission.CAMERA;
   private static final String PERMISSION_STORAGE = Manifest.permission.WRITE_EXTERNAL_STORAGE;
+  private static final String PERMISSION_READ_STORAGE = Manifest.permission.READ_EXTERNAL_STORAGE;
 
   private boolean debug = false;
 
@@ -59,6 +60,7 @@ public abstract class CameraActivity extends Activity
   private HandlerThread handlerThread;
   private boolean useCamera2API;
   private boolean isProcessingFrame = false;
+  private boolean isFragmentSet = false;
   private byte[][] yuvBytes = new byte[3][];
   private int[] rgbBytes = null;
   private int yRowStride;
@@ -78,8 +80,10 @@ public abstract class CameraActivity extends Activity
     setContentView(R.layout.activity_camera);
 
     if (hasPermission()) {
+      LOGGER.d("Permissions granted, setting fragment");
       setFragment();
     } else {
+      LOGGER.d("Requesting permissions");
       requestPermission();
     }
   }
@@ -228,16 +232,24 @@ public abstract class CameraActivity extends Activity
     handlerThread = new HandlerThread("inference");
     handlerThread.start();
     handler = new Handler(handlerThread.getLooper());
+    
+    // Check permissions again when returning from settings
+    if (isFragmentSet && !hasPermission()) {
+      LOGGER.d("Permissions lost, requesting again");
+      isFragmentSet = false; // Reset so we can try again
+      if (hasPermission()) {
+        setFragment();
+      } else {
+        requestPermission();
+      }
+    }
   }
 
   @Override
   public synchronized void onPause() {
     LOGGER.d("onPause " + this);
 
-    if (!isFinishing()) {
-      LOGGER.d("Requesting finish");
-      finish();
-    }
+    // Removed automatic finish() call to prevent app from closing immediately
 
     handlerThread.quitSafely();
     try {
@@ -273,20 +285,65 @@ public abstract class CameraActivity extends Activity
   public void onRequestPermissionsResult(
       final int requestCode, final String[] permissions, final int[] grantResults) {
     if (requestCode == PERMISSIONS_REQUEST) {
-      if (grantResults.length > 0
-          && grantResults[0] == PackageManager.PERMISSION_GRANTED
-          && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
+      LOGGER.d("Permission result received. Count: " + grantResults.length);
+      
+      boolean allPermissionsGranted = true;
+      boolean cameraPermissionGranted = false;
+      
+      // Check each permission result
+      for (int i = 0; i < permissions.length; i++) {
+        String permission = permissions[i];
+        boolean granted = grantResults[i] == PackageManager.PERMISSION_GRANTED;
+        
+        LOGGER.d("Permission " + permission + " granted: " + granted);
+        
+        if (permission.equals(PERMISSION_CAMERA)) {
+          cameraPermissionGranted = granted;
+        }
+        
+        if (!granted) {
+          allPermissionsGranted = false;
+        }
+      }
+      
+      if (allPermissionsGranted && cameraPermissionGranted) {
+        LOGGER.d("All permissions granted, setting fragment");
         setFragment();
       } else {
-        requestPermission();
+        // Handle permission denial
+        if (!cameraPermissionGranted) {
+          // Check if user selected "Don't ask again"
+          if (!shouldShowRequestPermissionRationale(PERMISSION_CAMERA)) {
+            showPermissionDeniedPermanentlyDialog();
+          } else {
+            showPermissionDeniedDialog();
+          }
+          LOGGER.e("Camera permission denied");
+        } else {
+          String message = "Some permissions were denied. The app may not function properly.";
+          Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+          LOGGER.w("Some permissions denied, continuing anyway");
+          setFragment(); // Try to continue with just camera permission
+        }
       }
     }
   }
 
   private boolean hasPermission() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-      return checkSelfPermission(PERMISSION_CAMERA) == PackageManager.PERMISSION_GRANTED &&
-          checkSelfPermission(PERMISSION_STORAGE) == PackageManager.PERMISSION_GRANTED;
+      boolean hasCameraPermission = checkSelfPermission(PERMISSION_CAMERA) == PackageManager.PERMISSION_GRANTED;
+      boolean hasStoragePermission = true; // Default to true for newer Android versions
+      
+      // Only check storage permission if API < 29 (Android 10)
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        hasStoragePermission = checkSelfPermission(PERMISSION_STORAGE) == PackageManager.PERMISSION_GRANTED;
+      } else {
+        // For Android 10+, we don't need WRITE_EXTERNAL_STORAGE for app-specific directories
+        hasStoragePermission = true;
+      }
+      
+      LOGGER.d("Camera permission: " + hasCameraPermission + ", Storage permission: " + hasStoragePermission);
+      return hasCameraPermission && hasStoragePermission;
     } else {
       return true;
     }
@@ -294,13 +351,133 @@ public abstract class CameraActivity extends Activity
 
   private void requestPermission() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-      if (shouldShowRequestPermissionRationale(PERMISSION_CAMERA) ||
-          shouldShowRequestPermissionRationale(PERMISSION_STORAGE)) {
-        Toast.makeText(CameraActivity.this,
-            "Camera AND storage permission are required for this demo", Toast.LENGTH_LONG).show();
+      // Prepare permissions list based on Android version
+      java.util.List<String> permissionsToRequest = new java.util.ArrayList<>();
+      
+      // Always request camera permission
+      if (checkSelfPermission(PERMISSION_CAMERA) != PackageManager.PERMISSION_GRANTED) {
+        permissionsToRequest.add(PERMISSION_CAMERA);
       }
-      requestPermissions(new String[] {PERMISSION_CAMERA, PERMISSION_STORAGE}, PERMISSIONS_REQUEST);
+      
+      // Only request storage permission for Android < 10
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        if (checkSelfPermission(PERMISSION_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+          permissionsToRequest.add(PERMISSION_STORAGE);
+        }
+      }
+      
+      if (!permissionsToRequest.isEmpty()) {
+        // Show rationale if needed
+        boolean shouldShowRationale = false;
+        for (String permission : permissionsToRequest) {
+          if (shouldShowRequestPermissionRationale(permission)) {
+            shouldShowRationale = true;
+            break;
+          }
+        }
+        
+        if (shouldShowRationale) {
+          showPermissionRationaleDialog(permissionsToRequest);
+          return; // Don't request permissions yet, wait for user response
+        }
+        
+        LOGGER.d("Requesting permissions: " + permissionsToRequest);
+        requestPermissions(permissionsToRequest.toArray(new String[0]), PERMISSIONS_REQUEST);
+      } else {
+        // All permissions already granted
+        LOGGER.d("All required permissions already granted");
+        setFragment();
+      }
     }
+  }
+
+  private void showPermissionRationaleDialog(final java.util.List<String> permissions) {
+    String title = "Permissions Required";
+    StringBuilder message = new StringBuilder();
+    
+    boolean needsCamera = permissions.contains(PERMISSION_CAMERA);
+    boolean needsStorage = permissions.contains(PERMISSION_STORAGE);
+    
+    if (needsCamera) {
+      message.append("• Camera permission is required to capture video and detect objects in real-time\n");
+    }
+    
+    if (needsStorage) {
+      message.append("• Storage permission is needed to save detection results and images\n");
+    }
+    
+    message.append("\nWithout these permissions, the app cannot function properly.");
+    
+    android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+    builder.setTitle(title)
+        .setMessage(message.toString())
+        .setPositiveButton("Grant Permissions", new android.content.DialogInterface.OnClickListener() {
+          @Override
+          public void onClick(android.content.DialogInterface dialog, int which) {
+            LOGGER.d("User agreed to grant permissions");
+            requestPermissions(permissions.toArray(new String[0]), PERMISSIONS_REQUEST);
+          }
+        })
+        .setNegativeButton("Cancel", new android.content.DialogInterface.OnClickListener() {
+          @Override
+          public void onClick(android.content.DialogInterface dialog, int which) {
+            LOGGER.d("User canceled permission request");
+            Toast.makeText(CameraActivity.this, "App cannot function without required permissions", Toast.LENGTH_LONG).show();
+            finish();
+          }
+        })
+        .setCancelable(false)
+        .show();
+  }
+
+  private void showPermissionDeniedDialog() {
+    android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+    builder.setTitle("Permission Required")
+        .setMessage("Camera permission is essential for this app to function. Would you like to try granting the permission again?")
+        .setPositiveButton("Try Again", new android.content.DialogInterface.OnClickListener() {
+          @Override
+          public void onClick(android.content.DialogInterface dialog, int which) {
+            requestPermission();
+          }
+        })
+        .setNegativeButton("Exit", new android.content.DialogInterface.OnClickListener() {
+          @Override
+          public void onClick(android.content.DialogInterface dialog, int which) {
+            finish();
+          }
+        })
+        .setCancelable(false)
+        .show();
+  }
+
+  private void showPermissionDeniedPermanentlyDialog() {
+    android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+    builder.setTitle("Permission Permanently Denied")
+        .setMessage("Camera permission has been permanently denied. Please enable it manually in Settings > Apps > " + 
+                   getResources().getString(R.string.app_name) + " > Permissions.")
+        .setPositiveButton("Open Settings", new android.content.DialogInterface.OnClickListener() {
+          @Override
+          public void onClick(android.content.DialogInterface dialog, int which) {
+            openAppSettings();
+          }
+        })
+        .setNegativeButton("Exit", new android.content.DialogInterface.OnClickListener() {
+          @Override
+          public void onClick(android.content.DialogInterface dialog, int which) {
+            finish();
+          }
+        })
+        .setCancelable(false)
+        .show();
+  }
+
+  private void openAppSettings() {
+    android.content.Intent intent = new android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+    android.net.Uri uri = android.net.Uri.fromParts("package", getPackageName(), null);
+    intent.setData(uri);
+    startActivity(intent);
+    // Close app so user can restart after changing permissions
+    finish();
   }
 
   // Returns true if the device supports the required hardware level, or better.
@@ -350,7 +527,19 @@ public abstract class CameraActivity extends Activity
   }
 
   protected void setFragment() {
+    if (isFragmentSet) {
+      LOGGER.d("Fragment already set, skipping");
+      return;
+    }
+    
+    LOGGER.d("Setting fragment");
     String cameraId = chooseCamera();
+    if (cameraId == null) {
+      LOGGER.e("No camera available");
+      Toast.makeText(this, "No camera available", Toast.LENGTH_LONG).show();
+      finish();
+      return;
+    }
 
     Fragment fragment;
     if (useCamera2API) {
@@ -379,6 +568,9 @@ public abstract class CameraActivity extends Activity
         .beginTransaction()
         .replace(R.id.container, fragment)
         .commit();
+        
+    isFragmentSet = true;
+    LOGGER.d("Fragment set successfully");
   }
 
   protected void fillBytes(final Plane[] planes, final byte[][] yuvBytes) {

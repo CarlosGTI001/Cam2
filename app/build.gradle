@@ -94,6 +94,20 @@ android {
                 }
             }
         }
+        
+        LLMChat {
+            dimension "model"
+            applicationId "com.davidchiu.snpecam.llm"
+            versionName '0.1.0'
+            buildConfigField 'String', 'model_file', '"tinyllama_quantized.dlc"'
+            buildConfigField 'String', 'tokenizer_file', '"tokenizer.json"'
+            buildConfigField 'int', 'max_tokens', '512'
+            buildConfigField 'float', 'temperature', '0.7f'
+            versionNameSuffix "-llmchat"
+            resValue "string", "app_name", "SNPE LLM Chat"
+            manifestPlaceholders = [screenOrientation: "portrait"]
+            buildConfigField 'String', 'model', '"llmchat"'
+        }
 
     }
 }

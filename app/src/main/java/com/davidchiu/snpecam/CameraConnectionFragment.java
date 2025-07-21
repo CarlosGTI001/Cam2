@@ -173,8 +173,10 @@ public class CameraConnectionFragment extends Fragment {
           cd.close();
           cameraDevice = null;
           final Activity activity = getActivity();
-          if (null != activity) {
-            activity.finish();
+          if (null != activity && !activity.isFinishing()) {
+            android.util.Log.e("CameraConnectionFragment", "Camera error: " + error);
+            android.widget.Toast.makeText(activity, "Camera error: " + error, android.widget.Toast.LENGTH_LONG).show();
+            // Don't call finish() to prevent restart loop
           }
         }
       };

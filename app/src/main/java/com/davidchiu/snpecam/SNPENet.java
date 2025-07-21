@@ -79,6 +79,11 @@ public class SNPENet {
         else return "CPU";
     }
     public void setModelName(String name) { modelName = name;}
+    
+    public boolean isInitialized() {
+        return mNNetwork != null;
+    }
+    
     public void init(Activity activity, String modelFile, String labelFile){
         try {
             loadLabels(activity.getApplicationContext(), labelFile);
@@ -93,9 +98,16 @@ public class SNPENet {
         try {
             assetsInputStream = activity.getAssets().open(modelFile);
             modelSize = assetsInputStream.available();
+            Log.d(this.getClass().getSimpleName(), "Model file opened successfully: " + modelFile + " size: " + modelSize);
         } catch ( IOException e) {
-            Log.e(this.getClass().getSimpleName(), " Failed open model: " + e);
+            Log.e(this.getClass().getSimpleName(), " Failed to open model file: " + modelFile + " - " + e.getMessage());
+            // Return early if model file cannot be opened
+            return;
+        }
 
+        if (assetsInputStream == null || modelSize == 0) {
+            Log.e(this.getClass().getSimpleName(), "Invalid model file: " + modelFile);
+            return;
         }
 
         try {
@@ -120,10 +132,35 @@ public class SNPENet {
             final long start = SystemClock.elapsedRealtime();
             mNNetwork = builder.build();
             final long end = SystemClock.elapsedRealtime();
-
+            
+            Log.d(this.getClass().getSimpleName(), "SNPE model loaded successfully in " + (end - start) + "ms");
             //mLoadTime = end - start;
-        } catch (IllegalStateException | IOException e) {
-            Log.e(LOG_TAG, e.getMessage(), e);
+        } catch (IllegalStateException e) {
+            Log.e(LOG_TAG, "IllegalStateException during SNPE initialization: " + e.getMessage(), e);
+            mNNetwork = null;
+            return;
+        } catch (IOException e) {
+            Log.e(LOG_TAG, "IOException during SNPE initialization: " + e.getMessage(), e);
+            mNNetwork = null;
+            return;
+        } catch (Exception e) {
+            Log.e(LOG_TAG, "Unexpected error during SNPE initialization: " + e.getMessage(), e);
+            mNNetwork = null;
+            return;
+        } finally {
+            // Close the input stream
+            if (assetsInputStream != null) {
+                try {
+                    assetsInputStream.close();
+                } catch (IOException e) {
+                    Log.w(this.getClass().getSimpleName(), "Failed to close asset stream: " + e.getMessage());
+                }
+            }
+        }
+
+        if (mNNetwork == null) {
+            Log.e(LOG_TAG, "SNPE model initialization failed - mNNetwork is null");
+            return;
         }
 
         Set<String> inputNames = mNNetwork.getInputTensorsNames();
@@ -153,6 +190,11 @@ public class SNPENet {
     }
 
     public List<Detection> run(Bitmap bitmap) {
+        if (!isInitialized()) {
+            Log.e(LOG_TAG, "SNPE model not initialized, cannot run inference");
+            return new ArrayList<>();
+        }
+        
         final FloatTensor tensor = mNNetwork.createFloatTensor(
                 mNNetwork.getInputTensorsShapes().get(mInputLayer));
 
