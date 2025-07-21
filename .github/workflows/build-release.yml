@@ -50,6 +50,12 @@ jobs:
     - name: Build CaffeSSD APK
       run: ./gradlew assembleCaffeSSDRelease --stacktrace
 
+    - name: List generated APKs
+      run: |
+        echo "Listing APK output directory:"
+        find app/build/outputs/apk -name "*.apk" -type f
+        ls -la app/build/outputs/apk/*/release/ || echo "No release directories found"
+
     - name: Get version name
       id: version
       run: |
@@ -67,5 +73,5 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          app/build/outputs/apk/SSDMobilenet/release/app-SSDMobilenet-release.apk
-          app/build/outputs/apk/CaffeSSD/release/app-CaffeSSD-release.apk
+          app/build/outputs/apk/sSDMobilenet/release/app-sSDMobilenet-release*.apk
+          app/build/outputs/apk/caffeSSD/release/app-caffeSSD-release*.apk
