@@ -1,22 +1,17 @@
-name: Build Android APK
+name: Android Build with Auto Key Signing
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build Release APK
     runs-on: ubuntu-latest
 
     steps:
     - name: 📥 Checkout code
       uses: actions/checkout@v3
 
-    - name: ☕ Set up JDK 17
+    - name: ☕ Set up JDK
       uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
@@ -25,14 +20,44 @@ jobs:
     - name: 📦 Set up Android SDK
       uses: android-actions/setup-android@v3
 
+    - name: ⬇️ Set up Gradle
+      uses: gradle/gradle-build-action@v3
+      with:
+        gradle-version: 8.4
+
+    - name: ⚙️ Generate gradlew if missing
+      run: gradle wrapper
+
     - name: 📂 Make gradlew executable
       run: chmod +x ./gradlew
 
     - name: 🛠️ Build release APK
       run: ./gradlew assembleRelease
 
-    - name: 📤 Upload APK
+    - name: 🔐 Generate temporary keystore
+      run: |
+        keytool -genkeypair \
+          -alias temp-key \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -keystore temp.keystore \
+          -storepass temp1234 \
+          -keypass temp1234 \
+          -dname "CN=Temp, OU=CI, O=GitHub, L=Internet, ST=World, C=US"
+
+    - name: 🔏 Sign APK with temp keystore
+      run: |
+        $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+          --ks temp.keystore \
+          --ks-key-alias temp-key \
+          --ks-pass pass:temp1234 \
+          --key-pass pass:temp1234 \
+          --out app-release-signed.apk \
+          app/build/outputs/apk/release/app-release.apk
+
+    - name: 📤 Upload signed APK
       uses: actions/upload-artifact@v4
       with:
-        name: release-apk
-        path: app/build/outputs/apk/release/app-release.apk
+        name: signed-apk
+        path: app-release-signed.apk
