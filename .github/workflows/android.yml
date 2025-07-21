@@ -1,4 +1,4 @@
-name: Android Build & Sign (JDK 17, Gradle 3.3, AGP 2.3.3)
+name: Android Build & Sign Flavors (JDK 17, Gradle 3.3, AGP 2.3.3)
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v3
 
     - name: Set up JDK 17
@@ -22,10 +22,14 @@ jobs:
 
     - name: Set up Android SDK
       uses: android-actions/setup-android@v3
+      with:
+        sdk-version: '27'
+        build-tools-version: '27.0.3'
 
     - name: Setup Gradle Wrapper 3.3 if missing
       run: |
         if [ ! -f "./gradlew" ]; then
+          echo "Generating Gradle wrapper 3.3..."
           wget https://services.gradle.org/distributions/gradle-3.3-bin.zip
           unzip gradle-3.3-bin.zip
           export PATH=$PWD/gradle-3.3/bin:$PATH
