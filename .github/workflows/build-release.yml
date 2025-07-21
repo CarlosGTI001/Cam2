@@ -15,7 +15,7 @@ jobs:
     
     strategy:
       matrix:
-        flavor: [SSDMobilenet, CaffeSSD, LLMChat]
+        flavor: [SSDMobilenet, CaffeSSD]
     
     steps:
     - name: Checkout code
@@ -118,10 +118,9 @@ jobs:
         body: |
           ## SNPE Camera App Release ${{ steps.version.outputs.version }}
           
-          This release includes three APK flavors:
+          This release includes two APK flavors:
           - **SSDMobilenet**: Object detection using SSD MobileNet model
-          - **CaffeSSD**: Object detection using Caffe SSD model  
-          - **LLMChat**: Chat interface with LLM inference (experimental)
+          - **CaffeSSD**: Object detection using Caffe SSD model
           
           All APKs are signed and ready for installation.
           
