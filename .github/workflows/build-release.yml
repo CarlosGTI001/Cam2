@@ -25,7 +25,7 @@ jobs:
       with:
         api-level: 27
         build-tools: 27.0.3
-        ndk-version: 21.4.7075529
+        ndk-version: 20.1.5948944
 
     - name: Cache Gradle packages
       uses: actions/cache@v3
@@ -39,8 +39,9 @@ jobs:
 
     - name: Setup environment and Gradle
       run: |
-        echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
-        echo "ANDROID_NDK_ROOT=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
+        # Setup NDK paths
+        echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+        echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
         
         # Install specific Gradle version
         wget https://services.gradle.org/distributions/gradle-4.10.3-bin.zip
@@ -49,6 +50,9 @@ jobs:
         export PATH=$GRADLE_HOME/bin:$PATH
         echo "GRADLE_HOME=$PWD/gradle-4.10.3" >> $GITHUB_ENV
         echo "$PWD/gradle-4.10.3/bin" >> $GITHUB_PATH
+        
+        # Verify NDK installation
+        ls -la $ANDROID_NDK_ROOT/ || echo "NDK directory listing failed"
         
         # Generate wrapper with correct version
         gradle wrapper --gradle-version 4.10.3
