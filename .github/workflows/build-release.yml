@@ -50,6 +50,26 @@ jobs:
     - name: Build CaffeSSD APK
       run: ./gradlew assembleCaffeSSDRelease --stacktrace
 
+    - name: Sign APKs
+      uses: r0adkll/sign-android-release@v1
+      id: sign_ssd
+      with:
+        releaseDirectory: app/build/outputs/apk/SSDMobilenet/release
+        signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+        alias: ${{ secrets.ALIAS }}
+        keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+    - name: Sign CaffeSSD APK
+      uses: r0adkll/sign-android-release@v1
+      id: sign_caffe
+      with:
+        releaseDirectory: app/build/outputs/apk/CaffeSSD/release
+        signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+        alias: ${{ secrets.ALIAS }}
+        keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_PASSWORD }}
+
     - name: Get version name
       id: version
       run: |
@@ -67,5 +87,5 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          app/build/outputs/apk/SSDMobilenet/release/app-SSDMobilenet-release-unsigned.apk
-          app/build/outputs/apk/CaffeSSD/release/app-CaffeSSD-release-unsigned.apk
+          ${{ steps.sign_ssd.outputs.signedReleaseFile }}
+          ${{ steps.sign_caffe.outputs.signedReleaseFile }}
