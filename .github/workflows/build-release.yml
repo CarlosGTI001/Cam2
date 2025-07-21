@@ -37,10 +37,20 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
 
-    - name: Setup environment and Gradle Wrapper
+    - name: Setup environment and Gradle
       run: |
         echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
         echo "ANDROID_NDK_ROOT=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
+        
+        # Install specific Gradle version
+        wget https://services.gradle.org/distributions/gradle-4.10.3-bin.zip
+        unzip -q gradle-4.10.3-bin.zip
+        export GRADLE_HOME=$PWD/gradle-4.10.3
+        export PATH=$GRADLE_HOME/bin:$PATH
+        echo "GRADLE_HOME=$PWD/gradle-4.10.3" >> $GITHUB_ENV
+        echo "$PWD/gradle-4.10.3/bin" >> $GITHUB_PATH
+        
+        # Generate wrapper with correct version
         gradle wrapper --gradle-version 4.10.3
 
     - name: Build SSDMobilenet APK
