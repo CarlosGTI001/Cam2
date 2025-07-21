@@ -1,4 +1,4 @@
-name: Android Build & Sign Flavors (API 27, AGP 2.3.3, Gradle 3.3, JDK 8)
+name: Android Build & Sign (JDK 17, Gradle 3.3, AGP 2.3.3)
 
 on:
   workflow_dispatch:
@@ -14,64 +14,31 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # --- Instalar JDK 17 para sdkmanager (solo para instalar SDK) ---
-    - name: Set up JDK 17 (for sdkmanager)
+    - name: Set up JDK 17
       uses: actions/setup-java@v3
       with:
         distribution: temurin
         java-version: 17
 
-    # --- Descargar SDK command line tools ---
-    - name: Download Android cmdline-tools
-      run: |
-        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-        curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-        unzip cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
-        mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
 
-    # --- Instalar SDK plataforma 27 y build tools 27.0.3 ---
-    - name: Accept licenses and install SDK 27 + Build Tools 27.0.3
-      env:
-        ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
-        PATH: ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:$PATH
-      run: |
-        yes | sdkmanager --licenses
-        sdkmanager "platforms;android-27" "build-tools;27.0.3"
-
-    # --- Cambiar a JDK 8 para compilar ---
-    - name: Set up JDK 8 for build
-      uses: actions/setup-java@v3
-      with:
-        distribution: temurin
-        java-version: 8
-
-    # --- Agregar sdk a PATH para build tools ---
-    - name: Setup Android SDK environment variables
-      run: |
-        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "PATH=$ANDROID_SDK_ROOT/build-tools/27.0.3:$PATH" >> $GITHUB_ENV
-
-    # --- Setup gradle wrapper si no existe ---
     - name: Setup Gradle Wrapper 3.3 if missing
       run: |
         if [ ! -f "./gradlew" ]; then
-          echo "Generating Gradle wrapper 3.3..."
           wget https://services.gradle.org/distributions/gradle-3.3-bin.zip
           unzip gradle-3.3-bin.zip
           export PATH=$PWD/gradle-3.3/bin:$PATH
           gradle wrapper
         fi
 
-    # --- Forzar versión de gradle-wrapper.properties a 3.3 ---
     - name: Force gradle-wrapper version 3.3
       run: |
         sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-3.3-all.zip|' gradle/wrapper/gradle-wrapper.properties
 
-    # --- Dar permisos al wrapper ---
     - name: Make gradlew executable
       run: chmod +x ./gradlew
 
-    # --- Generar keystore temporal ---
     - name: Generate temporary keystore
       run: |
         keytool -genkeypair \
@@ -84,7 +51,6 @@ jobs:
           -keypass temp1234 \
           -dname "CN=Temp, OU=CI, O=GitHub, L=Internet, ST=World, C=US"
 
-    # --- Build y firmar SSDMobilenet ---
     - name: Build SSDMobilenet Release APK
       run: ./gradlew assembleSSDMobilenetRelease
 
@@ -98,7 +64,6 @@ jobs:
           --out app-SSDMobilenet-release-signed.apk \
           app/build/outputs/apk/SSDMobilenet/release/app-SSDMobilenet-release.apk
 
-    # --- Build y firmar CaffeSSD ---
     - name: Build CaffeSSD Release APK
       run: ./gradlew assembleCaffeSSDRelease
 
@@ -112,7 +77,6 @@ jobs:
           --out app-CaffeSSD-release-signed.apk \
           app/build/outputs/apk/CaffeSSD/release/app-CaffeSSD-release.apk
 
-    # --- Subir los APKs firmados ---
     - name: Upload signed APKs
       uses: actions/upload-artifact@v4
       with:
