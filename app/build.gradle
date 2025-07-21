@@ -42,7 +42,7 @@ android {
             //assets.srcDirs       = ['src/main/assets']
             //jniLibs.srcDirs  'build/'+project.ext.buildTempDir+ '/lib'
             jniLibs.srcDirs = ['src/main/libs']
-            jni.srcDirs = [] // disable use of automatically generated Android.mk
+            // disable use of automatically generated Android.mk
         }
 
     }
@@ -97,7 +97,7 @@ android {
 
     }
 }
-
 dependencies {
-    implementation(name: 'snpe-release', ext:'aar')
+    implementation files('libs/snpe-release.aar')
 }
+
