@@ -1,4 +1,4 @@
-name: Android Build with Auto Key Signing
+name: Android Build & Sign Flavors (AGP 2.3.3, Gradle 3.3)
 
 on:
   workflow_dispatch:
@@ -11,28 +11,31 @@ jobs:
     - name: 📥 Checkout code
       uses: actions/checkout@v3
 
-    - name: ☕ Set up JDK
+    - name: ☕ Set up JDK 8
       uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
-        java-version: 17
+        java-version: 8
 
     - name: 📦 Set up Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: ⬇️ Set up Gradle
-      uses: gradle/gradle-build-action@v3
-      with:
-        gradle-version: 8.4
-
-    - name: ⚙️ Generate gradlew if missing
-      run: gradle wrapper
+    - name: 🛠️ Set up Gradle 3.3 (if no gradlew exists)
+      run: |
+        if [ ! -f "./gradlew" ]; then
+          echo "No gradlew found. Generating wrapper with Gradle 3.3..."
+          wget https://services.gradle.org/distributions/gradle-3.3-bin.zip
+          unzip gradle-3.3-bin.zip
+          export PATH=$PWD/gradle-3.3/bin:$PATH
+          gradle wrapper
+        fi
 
     - name: 📂 Make gradlew executable
       run: chmod +x ./gradlew
 
-    - name: 🛠️ Build release APK
-      run: ./gradlew assembleRelease
+    - name: 🧱 Set Gradle wrapper to 3.3
+      run: |
+        sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-3.3-all.zip|' gradle/wrapper/gradle-wrapper.properties
 
     - name: 🔐 Generate temporary keystore
       run: |
@@ -46,18 +49,38 @@ jobs:
           -keypass temp1234 \
           -dname "CN=Temp, OU=CI, O=GitHub, L=Internet, ST=World, C=US"
 
-    - name: 🔏 Sign APK with temp keystore
+    # Compilar y firmar SSDMobilenet
+    - name: 🔧 Build SSDMobilenet release APK
+      run: ./gradlew assembleSSDMobilenetRelease
+
+    - name: 🔏 Sign SSDMobilenet APK
       run: |
-        $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+        $ANDROID_HOME/build-tools/27.0.3/apksigner sign \
           --ks temp.keystore \
           --ks-key-alias temp-key \
           --ks-pass pass:temp1234 \
           --key-pass pass:temp1234 \
-          --out app-release-signed.apk \
-          app/build/outputs/apk/release/app-release.apk
+          --out app-SSDMobilenet-release-signed.apk \
+          app/build/outputs/apk/SSDMobilenet/release/app-SSDMobilenet-release.apk
 
-    - name: 📤 Upload signed APK
+    # Compilar y firmar CaffeSSD
+    - name: 🔧 Build CaffeSSD release APK
+      run: ./gradlew assembleCaffeSSDRelease
+
+    - name: 🔏 Sign CaffeSSD APK
+      run: |
+        $ANDROID_HOME/build-tools/27.0.3/apksigner sign \
+          --ks temp.keystore \
+          --ks-key-alias temp-key \
+          --ks-pass pass:temp1234 \
+          --key-pass pass:temp1234 \
+          --out app-CaffeSSD-release-signed.apk \
+          app/build/outputs/apk/CaffeSSD/release/app-CaffeSSD-release.apk
+
+    - name: 📤 Upload signed APKs
       uses: actions/upload-artifact@v4
       with:
-        name: signed-apk
-        path: app-release-signed.apk
+        name: signed-apks
+        path: |
+          app-SSDMobilenet-release-signed.apk
+          app-CaffeSSD-release-signed.apk
