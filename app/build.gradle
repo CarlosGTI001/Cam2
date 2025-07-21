@@ -1,11 +1,11 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace 'com.davidchiu.snpe'
+    namespace 'com.davidchiu.snpecam'
     compileSdk 33
 
     defaultConfig {
-        applicationId "com.davidchiu.snpe"
+        applicationId "com.davidchiu.snpecam"
         targetSdk 33
         minSdk 21
         ndk {
@@ -51,7 +51,7 @@ android {
     productFlavors {
         SSDMobilenet {
             dimension "model"
-            applicationId "com.davidchiu.snpe"
+            applicationId "com.davidchiu.snpecam"
             versionName '0.1.0'
             buildConfigField 'String', 'model_file', '"mobilenet_ssd.dlc"'
             buildConfigField 'String', 'config_file', '"MobileNetSSD_deploy.id.h"'
@@ -77,7 +77,7 @@ android {
         }
         CaffeSSD {
             dimension "model"
-            applicationId "com.davidchiu.snpe"
+            applicationId "com.davidchiu.snpecam"
             versionName '0.1.0'
             buildConfigField 'String', 'model_file', '"caffe_mobilenet_ssd.dlc"'
             buildConfigField 'String', 'label_file', '"coco_labels_list_ssd.txt"'
