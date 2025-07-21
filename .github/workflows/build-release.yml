@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -56,33 +59,13 @@ jobs:
           echo "version=dev-${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
         fi
 
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create Release and Upload APKs
+      uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.version.outputs.version }}
-        release_name: Release ${{ steps.version.outputs.version }}
+        name: Release ${{ steps.version.outputs.version }}
         draft: false
         prerelease: false
-
-    - name: Upload SSDMobilenet APK
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: app/build/outputs/apk/SSDMobilenet/release/app-SSDMobilenet-release.apk
-        asset_name: SNPECam-SSDMobilenet-${{ steps.version.outputs.version }}.apk
-        asset_content_type: application/vnd.android.package-archive
-
-    - name: Upload CaffeSSD APK
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: app/build/outputs/apk/CaffeSSD/release/app-CaffeSSD-release.apk
-        asset_name: SNPECam-CaffeSSD-${{ steps.version.outputs.version }}.apk
-        asset_content_type: application/vnd.android.package-archive
+        files: |
+          app/build/outputs/apk/SSDMobilenet/release/app-SSDMobilenet-release.apk
+          app/build/outputs/apk/CaffeSSD/release/app-CaffeSSD-release.apk
